@@ -1,0 +1,21 @@
+# iCESugar v1.5  (iCE40UP5K-SG48)
+# Pin mengikuti nomor "Pxx" pada papan.
+
+# Clock 12 MHz dari iCELink
+set_io clk 35
+
+# LED bar 8-bit -> PMOD2 (P4 dan P6 di PMOD1 dipakai UART iCELink, jadi dihindari)
+# VCC modul LED bar -> pin 3.3V pada PMOD2 (JANGAN 5V)
+set_io led_bar[0] 46   # S0
+set_io led_bar[1] 45   # S1
+set_io led_bar[2] 44   # S2
+set_io led_bar[3] 43   # S3
+set_io led_bar[4] 42   # S4
+set_io led_bar[5] 38   # S5
+set_io led_bar[6] 37   # S6
+set_io led_bar[7] 36   # S7
+
+# RGB LED onboard (aktif-rendah)
+set_io led_r 40
+set_io led_g 41
+set_io led_b 39
