@@ -1,43 +1,3 @@
-# =====================================================================
-#  Makefile generik: FPGA iCE40 (iCESugar) + OSS CAD Suite
-#  Linux, macOS, WSL, dan Windows (GNU make).
-#
-#  Tata letak mengikuti oss-cad-suite-tcl-template:
-#      rtl/  tb/  constraints/  build/
-#
-#  Satu Makefile untuk semua project. Yang berbeda antar project cukup
-#  ditulis di file  project.mk  (opsional, di sebelah Makefile ini),
-#  atau di baris perintah. Contoh isi project.mk:
-#      TOP_LEVEL = top_blinky
-#
-#  Target (nama sama dengan template):
-#    make            sama dengan make all: syn + pnr + bit
-#    make syn        sintesis Yosys      -> build/<top>_netlist.json
-#    make pnr        place and route     -> build/<top>.asc
-#    make bit        bitstream           -> build/<top>.bin
-#    make compile    kompilasi iverilog  -> build/<top>_sim
-#    make vvp        jalankan simulasi
-#    make gtk        buka gelombang di GTKWave
-#    make sim        compile + vvp + gtk
-#    make test       compile + vvp (tanpa GUI)
-#    make flash      salin .bin ke drive iCELink (atau pakai FLASH_CMD)
-#    make clean      hapus folder build
-#    make doctor     cek tool terpasang
-#    make help       bantuan singkat
-#
-#  Variabel (di project.mk atau baris perintah, mis. make TOP_LEVEL=abc):
-#    TOP_LEVEL    nama module teratas (juga dasar nama file pcf/tb)
-#    DIR_RTL DIR_TB DIR_CONS DIR_BUILD   nama folder
-#    RTL_FILES    daftar file Verilog (default: semua rtl/*.v)
-#    PCF TB VCD   file constraint, testbench, dan dump gelombang
-#    PARAMS       override parameter module, mis. "ACTIVE_LOW=0 STEP_HZ=4"
-#    SYNTH_FLAGS  opsi synth_ice40 (default: Windows -noabc, lainnya -noabc9)
-#    FREQ         frekuensi clock untuk nextpnr dalam MHz (default 12)
-#    OSS_CAD      folder oss-cad-suite bila belum diaktifkan lewat
-#                 environment / environment.bat (Windows: pakai C:/oss-cad-suite)
-#    ICELINK      folder drive iCELink bila tidak terdeteksi otomatis
-#    FLASH_CMD    program lain untuk upload, mis. FLASH_CMD=icesprog
-# =====================================================================
 
 -include project.mk
 
@@ -59,15 +19,6 @@ FREQ          ?= 12
 NEXTPNR_FLAGS ?= --up5k --package sg48
 IVERILOG_FLAGS ?= -g2005
 
-# Catatan SYNTH_FLAGS (hasil uji nyata, OSS CAD Suite 2026-07-27):
-#  - Windows: abc9 crash dengan pesan
-#        Assert `data_start == f->tellp()' failed in aiger2/aiger.cc
-#    walau memakai -noabc9. Yang terbukti jalan adalah -noabc (pemetaan
-#    LUT bawaan Yosys, tanpa ABC; hasilnya lebih besar, 213 LC).
-#  - Linux: -noabc9 mematikan abc9 dan hasilnya paling kecil (170 LC).
-#    -noabc SENDIRIAN malah error ("-abc9 is incompatible with -noabc");
-#    kalau mau tanpa ABC di Linux pakai: make "SYNTH_FLAGS=-noabc9 -noabc"
-#  - Mau abc9 penuh di Linux (174 LC): make SYNTH_FLAGS=
 ifeq ($(OS),Windows_NT)
   SYNTH_FLAGS ?= -noabc
 else
@@ -83,21 +34,18 @@ ASC     := $(DIR_BUILD)/$(TOP_LEVEL).asc
 BIN     := $(DIR_BUILD)/$(TOP_LEVEL).bin
 SIMEXE  := $(DIR_BUILD)/$(TOP_LEVEL)_sim
 
-# PARAMS="A=1 B=2" -> "chparam -set A 1 top; chparam -set B 2 top;"
+
 CHPARAM = $(foreach p,$(PARAMS),chparam -set $(firstword $(subst =, ,$(p))) $(lastword $(subst =, ,$(p))) $(TOP_LEVEL);)
 
-# ------------------------ Perbedaan antar OS --------------------------
+
 ifeq ($(OS),Windows_NT)
-  # Windows biasanya tidak punya mkdir -p/rm/cp, jadi dipakai python3 bawaan
-  # OSS CAD Suite (aktif setelah environment.bat).
   PY    ?= python3
   MKDIR  = $(PY) -c "import os,sys; os.makedirs(sys.argv[1], exist_ok=True)"
   RM_RF  = $(PY) -c "import os,shutil,sys; [shutil.rmtree(p) if os.path.isdir(p) else os.remove(p) for p in sys.argv[1:] if os.path.exists(p)]"
   CP     = $(PY) -c "import shutil,sys; shutil.copy(sys.argv[1], sys.argv[2])"
   SYNC   =
   IV_VER = iverilog -V | $(PY) -c "import sys; print(next((l.strip() for l in sys.stdin if 'Icarus Verilog version' in l),''))"
-  # Cari drive iCELink lewat icelink.py (huruf drive beda-beda di tiap komputer).
-  # Baru dijalankan saat "make flash", jadi tidak memperlambat target lain.
+ 
   ICELINK_AUTO = $(shell $(PY) icelink.py)
   ifneq ($(strip $(OSS_CAD)),)
     OSS_WIN := $(subst /,\,$(strip $(OSS_CAD)))
@@ -114,20 +62,13 @@ else
   endif
 endif
 
-# Lokasi drive iCELink (Linux/macOS), kecuali sudah diberikan lewat ICELINK=
 ifeq ($(strip $(ICELINK)),)
   USER_NAME := $(or $(USER),$(USERNAME),$(shell whoami))
   ICELINK   := $(firstword $(wildcard /media/$(USER_NAME)/iCELink /run/media/$(USER_NAME)/iCELink /Volumes/iCELink))
 endif
 
-# Folder tujuan flash: ICELINK= dari pengguna, kalau kosong pakai deteksi otomatis
 FLASH_DIR = $(or $(strip $(ICELINK)),$(strip $(ICELINK_AUTO)))
 
-# ------------- Deteksi perubahan opsi (PARAMS, SYNTH_FLAGS) -----------
-# Tanpa ini, "make PARAMS=ACTIVE_LOW=0" setelah "make" tidak membangun
-# ulang apa pun karena file sumbernya tidak berubah. Perlu GNU make 4.2+.
-# Di make yang lebih lama (mis. 3.81) bagian ini dilewati, jadi jalankan
-# "make clean" setiap kali mengubah opsi.
 STAMP :=
 ifeq ($(filter 3.% 4.0% 4.1%,$(MAKE_VERSION)),)
   STAMP      := .build_config

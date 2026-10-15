@@ -14,9 +14,6 @@
 //  LED RGB onboard menampilkan nomor pola (mode[0]=R, mode[1]=G, mode[2]=B).
 //  Mode 0 = RGB padam.
 //
-//  Modul LED bar tidak punya pin GND: anoda semua LED ke VCC, S0..S7 adalah
-//  katoda -> LED menyala saat pin FPGA = LOW (ACTIVE_LOW = 1).
-//  Jika di modul Anda terbalik, ubah ACTIVE_LOW menjadi 0.
 // ============================================================================
 `default_nettype none
 
@@ -28,7 +25,7 @@ module top #(
 )(
     input  wire       clk,
     output wire [7:0] led_bar,   // S0..S7 pada modul LED bar
-    output wire       led_r,     // RGB onboard (aktif-rendah)
+    output wire       led_r,     // RGB onboard (active-low)
     output wire       led_g,
     output wire       led_b
 );
@@ -115,15 +112,12 @@ module top #(
         endcase
     end
 
-    // ------------------------------------------------------------------
-    // Output (diregister supaya bebas glitch)
-    // ------------------------------------------------------------------
     reg [7:0] pattern_r = 8'd0;
     always @(posedge clk) pattern_r <= pattern;
 
     assign led_bar = ACTIVE_LOW ? ~pattern_r : pattern_r;
 
-    // RGB onboard aktif-rendah
+    // RGB onboard active-low
     assign led_r = ~mode[0];
     assign led_g = ~mode[1];
     assign led_b = ~mode[2];
